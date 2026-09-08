@@ -86,3 +86,50 @@ Reading the actual output of a real run is what caught it.
 
 Tests verify the code does what you told it to. They cannot tell you that what
 you told it was wrong. `scripts/demo_run.py` exists for that second job.
+
+### Global mutable configuration makes tests order-dependent
+
+Adding `tests/test_api.py` broke ten tests in four other files. Nothing was
+wrong with those ten, and nothing was wrong with the API tests. The failure
+existed only in the combination, and only in that order — `test_api` sorts
+first alphabetically.
+
+`TestClient(app)` runs the application's lifespan, which calls
+`configure_logging()` and reconfigures structlog process-wide. With
+`cache_logger_on_first_use=True`, structlog caches the bound logger the first
+time a logger is used, and every later reconfiguration silently has no effect
+on it. The module-level `log` in `metrics.py` was then permanently wired to the
+production JSON renderer, so the `captured_logs` fixture could no longer
+intercept anything — real JSON appeared under "Captured stdout call" while
+`captured_logs` stayed empty.
+
+The tell was which tests survived: the two that call `structlog.get_logger()`
+inside the test body still passed, because they get a fresh proxy each time.
+Only tests routing through `node_span`'s module-level logger failed.
+
+`cache_logger_on_first_use` now defaults to `False`. It saves a trivial
+per-call cost and buys an irreversible global in exchange, which is a bad
+trade in any process that reconfigures logging — tests, notebooks, or a worker
+that re-reads its config.
+
+The sibling bug in the same change is worth recording for the same reason:
+`create_engine("sqlite://")` gives every thread its own connection, and every
+connection to `:memory:` is a different empty database. Tables created on the
+fixture's connection were invisible to the handler running in FastAPI's
+threadpool. `poolclass=StaticPool` shares the one connection.
+
+## Limitations
+
+The API tests boot the real application through `TestClient`, so real startup
+side effects execute — logging configuration and `init_db()` among them. That
+is what let a test-suite-wide logging change leak out of one file. A production
+setup would make logging configuration injectable and build the app through a
+factory, so a test app could be constructed without touching process-wide
+state.
+
+Test suite runtime is dominated by import cost, not execution: collection alone
+accounts for essentially all of it, because importing `app.api.main` pulls in
+the langchain and Azure client stack. The slowest individual test is 0.21s.
+
+Opportunity scores for unchecked queries are provisional and disclosed as such
+rather than confidence-weighted; see the scoring note under Design tradeoffs.

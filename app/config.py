@@ -19,5 +19,8 @@ class Settings(BaseSettings):
     dataforseo_timeout: float = 20.0
     dataforseo_max_attempts: int = 3
 
+    # Persistence
+    database_url: str = "sqlite:///./agentic_search.db"
+
 
 settings = Settings()

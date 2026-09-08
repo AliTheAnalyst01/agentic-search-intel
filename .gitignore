@@ -10,3 +10,4 @@ wheels/
 .venv
 .env
 agentic_search.db
+agentic_search.db

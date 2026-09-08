@@ -67,9 +67,15 @@ def build_processors(final_processor) -> list:
 
 
 def configure_logging(
-    level: str = "INFO", pretty: bool = False, cache: bool = True
+    level: str = "INFO", pretty: bool = False, cache: bool = False
 ) -> None:
-    """Install the processor chain. Call once at startup."""
+    """Install the processor chain. Call once at startup.
+
+    cache=False by default: caching the bound logger saves a trivial
+    per-call cost and makes the configuration irreversible, because a
+    module-level logger keeps whichever chain it first resolved. Tests
+    that reconfigure logging need it to stay reversible.
+    """
     renderer = (
         structlog.dev.ConsoleRenderer()
         if pretty
