@@ -59,7 +59,7 @@ def _run_one(
     try:
         execution = execute(call.tool_name, validated.args, client)
     except DataForSEOError as err:
-        metrics.record_api_call(f"{call.tool_name}:failed")
+        metrics.record_api_call(f"{call.tool_name}:failed", ok=False)
         return (
             RawResult(
                 query_uuid=call.query_uuid,

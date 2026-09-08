@@ -32,6 +32,7 @@ class RunMetrics:
     run_id: str
     nodes: list[NodeMetric] = field(default_factory=list)
     api_calls: int = 0
+    api_calls_failed: int = 0
     api_call_paths: list[str] = field(default_factory=list)
     retries: int = 0
     input_tokens: int = 0
@@ -40,8 +41,12 @@ class RunMetrics:
     def record_node(self, metric: NodeMetric) -> None:
         self.nodes.append(metric)
 
-    def record_api_call(self, path: str, attempts: int = 1) -> None:
+    def record_api_call(
+        self, path: str, attempts: int = 1, *, ok: bool = True
+    ) -> None:
         self.api_calls += 1
+        if not ok:
+            self.api_calls_failed += 1
         self.api_call_paths.append(path)
         self.retries += max(0, attempts - 1)
 
@@ -73,6 +78,8 @@ class RunMetrics:
                 for n in failed
             ],
             "api_calls": self.api_calls,
+            "api_calls_succeeded": self.api_calls - self.api_calls_failed,
+            "api_calls_failed": self.api_calls_failed,
             "api_call_paths": self.api_call_paths,
             "retries": self.retries,
             "total_tokens": self.total_tokens,

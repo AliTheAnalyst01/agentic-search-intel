@@ -84,7 +84,16 @@ def _summary_text(state: PipelineState, queries: list[NormalizedQuery]) -> str:
 
     if errors:
         lines += ["", f"Caveats ({len(errors)}):"]
-        lines += [f"  - {e.stage.value}: {e.message}" for e in errors[:5]]
+        for e in errors[:5]:
+            target = f" [{e.query_uuid[:8]}]" if e.query_uuid else ""
+            lines.append(
+                f"  - {e.stage.value}{target}: {e.error_type}: {e.message}"
+            )
+        if len(errors) > 5:
+            lines.append(
+                f"  - ... and {len(errors) - 5} more "
+                "(full list in the JSON report)"
+            )
 
     return "\n".join(lines)
 
