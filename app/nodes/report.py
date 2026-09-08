@@ -49,11 +49,27 @@ def _summary_text(state: PipelineState, queries: list[NormalizedQuery]) -> str:
     if ranked:
         lines += ["", "Highest-opportunity queries:"]
         for q in ranked[:5]:
-            position = f"#{q.visibility_position}" if q.visibility_position else "not ranking"
+            # visibility_position is None for two unrelated reasons, so
+            # branch on visibility_status: it is what the header counts.
+            if q.visibility_position:
+                position = f"#{q.visibility_position}"
+            elif q.visibility_status == "visible":
+                position = "visible in AI answers"
+            elif q.visibility_status == "not_visible":
+                position = "not ranking"
+            else:
+                position = "not checked"
             lines.append(
                 f"  - {q.query_text} "
-                f"(opportunity {q.opportunity_score}, {q.estimated_search_volume} searches/mo, "
-                f"difficulty {q.competitive_difficulty}, {position})"
+                f"(opportunity {q.opportunity_score}, "
+                f"{q.estimated_search_volume or 'n/a'} searches/mo, "
+                f"difficulty {q.competitive_difficulty or 'n/a'}, {position})"
+            )
+
+        if breakdown["unknown"]:
+            lines.append(
+                '  Queries marked "not checked" have provisional scores: no SERP '
+                "lookup covered them, so their visibility is unverified."
             )
 
     if insights:

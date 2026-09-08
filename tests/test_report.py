@@ -247,3 +247,59 @@ def test_skipped_analysis_does_not_degrade_the_run():
     result = build_report(state, metrics())
 
     assert result["overall_status"] == Status.OK
+
+
+# --- the summary must not contradict its own header ---
+
+def test_unchecked_query_is_not_reported_as_not_ranking():
+    """No SERP call covered it, so absence was never established."""
+    state = full_state(normalized_queries=[query(status="unknown")])
+    summary = build_report(state, metrics())["report_summary"]
+
+    assert "not checked" in summary
+    assert "not ranking" not in summary
+
+
+def test_ai_visible_query_without_a_serp_position_reads_as_visible():
+    """visibility_position is None for an AI mention; it is still visible."""
+    state = full_state(normalized_queries=[query(status="visible")])
+    summary = build_report(state, metrics())["report_summary"]
+
+    assert "Visible: 1" in summary
+    assert "visible in AI answers" in summary
+    assert "not checked" not in summary
+
+
+def test_every_listed_query_agrees_with_the_header_count():
+    """The header counts visibility_status; so must each row's label."""
+    state = full_state(
+        normalized_queries=[
+            query("q1", "a", status="visible", position=3),
+            query("q2", "b", status="visible"),
+            query("q3", "c", status="not_visible"),
+            query("q4", "d", status="unknown"),
+        ]
+    )
+    summary = build_report(state, metrics())["report_summary"]
+
+    assert "Visible: 2. Not visible: 1. Could not be checked: 1." in summary
+    assert summary.count("not checked") == 2, "one row label, one disclosure line"
+    assert summary.count("not ranking") == 1
+
+
+def test_provisional_score_disclosure_only_when_something_is_unchecked():
+    state = full_state(normalized_queries=[query(status="visible", position=3)])
+    summary = build_report(state, metrics())["report_summary"]
+
+    assert "provisional" not in summary
+
+
+def test_absent_metrics_are_not_reported_as_zero():
+    """An AI prompt has no search volume; zero would invite false inference."""
+    q = query(status="visible")
+    q.estimated_search_volume = 0
+    q.competitive_difficulty = 0
+    summary = build_report(full_state(normalized_queries=[q]), metrics())["report_summary"]
+
+    assert "n/a searches/mo" in summary
+    assert "0 searches/mo" not in summary

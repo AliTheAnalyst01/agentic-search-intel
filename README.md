@@ -24,6 +24,31 @@ and rarely changes the answer. Validation errors get a retry because the model
 can act on the validator's message; a coverage gap is a decision it already
 made.
 
+### "Not checked" is not "not ranking"
+
+`visibility_position` is `None` for two unrelated reasons: a SERP lookup ran and
+the domain was absent, or no SERP lookup ever covered that query. The report
+printed "not ranking" for both, so a run could state *Could not be checked: 2*
+in its header and then list those same two queries as not ranking. The analysis
+model read the contradictory table and faithfully reproduced it — "visibility is
+unknown and it does not currently rank" — which is not a model failure but an
+accurate report on bad input.
+
+Every row label is now derived from `visibility_status`, the same field the
+header counts, so the two cannot disagree. That includes AI-answer visibility,
+where a brand is genuinely visible with no SERP position at all.
+
+Absent metrics are passed to the model as `n/a` rather than `0` for the same
+reason. An AI prompt has no search volume by nature; a zero invites the model to
+reason about data that never existed.
+
+Unchecked queries keep their scores and are disclosed as provisional, because
+the neutral 0.5 visibility component can float an unverified query above a
+verified one. With more time the better answer is confidence-weighted scoring —
+damping unchecked queries so verified opportunities outrank unverified ones at
+equal fundamentals. That is a product decision about how to rank uncertainty,
+not a bug fix, which is why it is not slipped in as a magic multiplier.
+
 ## Testing approach
 
 ### Read the failure before assuming the code is broken
@@ -51,3 +76,13 @@ same redaction, same timestamps — tests see exactly the dict production would
 render. `cache_logger_on_first_use=False` in the fixture is load-bearing: with
 caching on, a logger bound by an earlier test keeps its old chain and the
 fixture has no effect.
+
+### A green suite does not mean a correct report
+
+Every test passed while the pipeline emitted a report that contradicted itself
+inside four lines. Nothing was broken in the sense a test can detect: the
+formatter did exactly what it was told, and the tests asserted that it did.
+Reading the actual output of a real run is what caught it.
+
+Tests verify the code does what you told it to. They cannot tell you that what
+you told it was wrong. `scripts/demo_run.py` exists for that second job.

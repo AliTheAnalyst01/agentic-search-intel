@@ -84,9 +84,12 @@ def _queries_table(queries: list[NormalizedQuery]) -> str:
         "query | volume | difficulty | visibility | position | opportunity"
     ]
     for q in ranked[:TOP_QUERIES_IN_PROMPT]:
+        # n/a, not 0: an AI prompt has no search volume by nature, and a
+        # zero invites the model to reason about data that never existed.
+        volume = q.estimated_search_volume or "n/a"
+        difficulty = q.competitive_difficulty or "n/a"
         lines.append(
-            f"{q.query_text} | {q.estimated_search_volume} | "
-            f"{q.competitive_difficulty} | {q.visibility_status} | "
+            f"{q.query_text} | {volume} | {difficulty} | {q.visibility_status} | "
             f"{q.visibility_position if q.visibility_position else '-'} | "
             f"{q.opportunity_score}"
         )
