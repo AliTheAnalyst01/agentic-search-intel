@@ -1,0 +1,73 @@
+{
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "1.8412 sec.",
+  "cost": 0.002,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "mock-0001-serp-organic",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "result_count": 1,
+      "path": ["v3", "serp", "google", "organic", "live", "advanced"],
+      "data": {
+        "keyword": "best seo tool",
+        "location_name": "United Kingdom",
+        "language_name": "English"
+      },
+      "result": [
+        {
+          "keyword": "best seo tool",
+          "se_domain": "google.co.uk",
+          "location_code": 2826,
+          "language_code": "en",
+          "items_count": 5,
+          "items": [
+            {
+              "type": "organic",
+              "rank_group": 1,
+              "rank_absolute": 1,
+              "domain": "ahrefs.com",
+              "title": "The 12 Best SEO Tools in 2026",
+              "url": "https://ahrefs.com/blog/seo-tools/"
+            },
+            {
+              "type": "organic",
+              "rank_group": 2,
+              "rank_absolute": 2,
+              "domain": "semrush.com",
+              "title": "Best SEO Tools for Every Budget",
+              "url": "https://www.semrush.com/blog/seo-tools/"
+            },
+            {
+              "type": "organic",
+              "rank_group": 3,
+              "rank_absolute": 3,
+              "domain": "surferseo.com",
+              "title": "SEO Tools Compared",
+              "url": "https://surferseo.com/blog/seo-tools/"
+            },
+            {
+              "type": "organic",
+              "rank_group": 4,
+              "rank_absolute": 4,
+              "domain": "moz.com",
+              "title": "SEO Software and Tools",
+              "url": "https://moz.com/products"
+            },
+            {
+              "type": "organic",
+              "rank_group": 5,
+              "rank_absolute": 5,
+              "domain": "clearscope.io",
+              "title": "Content Optimization Platform",
+              "url": "https://www.clearscope.io/"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

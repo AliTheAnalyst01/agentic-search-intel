@@ -1,0 +1,35 @@
+{
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.4120 sec.",
+  "cost": 0.001,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "mock-0003-keyword-data",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "result_count": 3,
+      "path": ["v3", "dataforseo_labs", "google", "keyword_overview", "live"],
+      "data": {"keywords": ["best seo tool"]},
+      "result": [
+        {
+          "keyword": "best seo tool",
+          "keyword_info": {"search_volume": 8100, "competition": 0.61},
+          "keyword_properties": {"keyword_difficulty": 74}
+        },
+        {
+          "keyword": "seo content optimization",
+          "keyword_info": {"search_volume": 2400, "competition": 0.44},
+          "keyword_properties": {"keyword_difficulty": 52}
+        },
+        {
+          "keyword": "surfer seo alternative",
+          "keyword_info": {"search_volume": 590, "competition": 0.21},
+          "keyword_properties": {"keyword_difficulty": 28}
+        }
+      ]
+    }
+  ]
+}

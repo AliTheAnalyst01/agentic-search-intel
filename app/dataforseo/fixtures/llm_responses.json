@@ -1,0 +1,49 @@
+{
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "6.2210 sec.",
+  "cost": 0.008,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "mock-0002-llm-responses",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "result_count": 1,
+      "path": ["v3", "ai_optimization", "chat_gpt", "llm_responses", "live"],
+      "data": {
+        "user_prompt": "What are the best SEO tools?",
+        "model_name": "gpt-4.1-mini"
+      },
+      "result": [
+        {
+          "model_name": "gpt-4.1-mini",
+          "items": [
+            {
+              "type": "llm_response",
+              "sections": [
+                {
+                  "type": "text",
+                  "text": "Popular SEO tools include Ahrefs, Semrush and Moz. For content optimization specifically, Surfer SEO and Clearscope are frequently recommended.",
+                  "annotations": [
+                    {
+                      "type": "url_citation",
+                      "url": "https://ahrefs.com/blog/seo-tools/",
+                      "title": "The 12 Best SEO Tools"
+                    },
+                    {
+                      "type": "url_citation",
+                      "url": "https://surferseo.com/blog/seo-tools/",
+                      "title": "SEO Tools Compared"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
