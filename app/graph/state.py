@@ -77,6 +77,7 @@ class NormalizedQuery(_Model):
     opportunity_score: float = 0.0
     domain_visible: bool = False
     visibility_position: int | None = None
+    visibility_status: Literal["visible", "not_visible", "unknown"] = "unknown"
     ai_platforms_checked: list[str] = Field(default_factory=list)
     citations: list[str] = Field(default_factory=list)
     discovered_at: datetime = Field(
