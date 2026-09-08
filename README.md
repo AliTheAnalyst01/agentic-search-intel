@@ -1,5 +1,29 @@
 # agentic-search-intel
 
+## Design tradeoffs
+
+### A missing required tool is a reported gap, not a patched one
+
+The planner is prompted to include exactly one keyword-metrics call, but a
+prompt is a request rather than a guarantee. Two obvious responses are both
+wrong. Injecting the call in code would move planning out of the planner and
+make the node quietly disagree with its own LLM. Failing the run is
+disproportionate — a plan without keyword metrics still answers most of the
+question.
+
+So a required tool that is absent from the final plan is recorded as a
+`CoverageGap` error and the run is marked `partial`. The report then states
+which data was unavailable, so a zeroed opportunity score is explained rather
+than silently wrong. The check runs *after* the `MAX_PLANNED_CALLS` cap: if
+truncation is what dropped the metrics call, that is still a real gap and is
+reported as one.
+
+Gaps deliberately do not trigger the self-correction round. The model was
+already told to include the call; asking a second time costs another API call
+and rarely changes the answer. Validation errors get a retry because the model
+can act on the validator's message; a coverage gap is a decision it already
+made.
+
 ## Testing approach
 
 ### Read the failure before assuming the code is broken

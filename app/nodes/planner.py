@@ -32,6 +32,21 @@ MODEL_TO_TOOL = {
     "KeywordMetricsArgs": "keyword_metrics_lookup",
 }
 
+# Tools whose absence degrades downstream stages. Recorded as a gap
+# rather than injected, so planning stays the planner's job and the
+# deficiency surfaces in the report instead of hiding as zeroed scores.
+COVERAGE_REQUIRED = {
+    "keyword_metrics_lookup": (
+        "No keyword metrics were planned, so search volume and competitive "
+        "difficulty are unavailable and opportunity scores will be unreliable."
+    ),
+}
+
+
+def _coverage_gaps(calls: list[PlannedCall]) -> list[str]:
+    planned = {c.tool_name for c in calls}
+    return [msg for tool, msg in COVERAGE_REQUIRED.items() if tool not in planned]
+
 SYSTEM_PROMPT = """You plan data retrieval for a search-intelligence pipeline.
 
 Given a brand and a research question, decide which lookups are needed to
@@ -42,8 +57,16 @@ answer it. You have three tools:
 - KeywordMetricsArgs: search volume and difficulty for a batch of keywords
 
 Rules:
-- Plan between 2 and {max_calls} calls. Fewer is better if they answer the question.
-- Cover both traditional search and AI visibility when the question concerns both.
+- Plan between 3 and {max_calls} calls total.
+- Always include exactly one KeywordMetricsArgs call. Downstream scoring
+  needs search volume and difficulty; without it the analysis is unusable.
+  Batch several related keywords into that single call.
+- Cover DISTINCT queries, not one query rephrased. A category has several
+  buying-intent queries: the head term, comparison terms, alternative-to
+  terms, and problem-led terms.
+- Use ONE location for every call unless the question names multiple markets.
+- Vary the AI platform when comparing platforms is useful, but do not repeat
+  the same prompt on more than two platforms.
 - Phrase AI prompts the way a real user would ask, not as a keyword.
 - Use only the allowed values for constrained fields.
 
@@ -155,16 +178,18 @@ def plan_queries(
             )
 
         accepted = accepted[:MAX_PLANNED_CALLS]
+        gaps = _coverage_gaps(accepted)
 
         if not accepted:
             status = Status.FAILED
-        elif problems:
+        elif problems or gaps:
             status = Status.PARTIAL
         else:
             status = Status.OK
 
         out["retrieval_calls_planned"] = len(accepted)
         out["tool_calls_rejected"] = len(problems)
+        out["coverage_gaps"] = len(gaps)
         out["status"] = status.value
 
         errors = [
@@ -175,6 +200,14 @@ def plan_queries(
                 retryable=False,
             )
             for p in problems
+        ] + [
+            StageError(
+                stage=Stage.PLANNER,
+                error_type="CoverageGap",
+                message=g,
+                retryable=False,
+            )
+            for g in gaps
         ]
 
         return {

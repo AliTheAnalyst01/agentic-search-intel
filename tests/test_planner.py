@@ -40,11 +40,18 @@ def valid_ai(call_id: str = "c2") -> dict:
 # --- happy path ---
 
 def test_valid_plan_is_accepted():
-    llm = FakeLLM([FakeResponse(tool_calls=[valid_serp(), valid_ai()], usage_metadata=usage())])
+    llm = FakeLLM(
+        [
+            FakeResponse(
+                tool_calls=[valid_serp(), valid_ai(), valid_keywords()],
+                usage_metadata=usage(),
+            )
+        ]
+    )
     result = plan_queries(state(), metrics(), llm=llm)
 
     assert result["planner_status"] == Status.OK
-    assert len(result["planned_calls"]) == 2
+    assert len(result["planned_calls"]) == 3
     assert result["errors"] == []
 
 
@@ -95,14 +102,14 @@ def test_invalid_arguments_trigger_one_correction_round():
     llm = FakeLLM(
         [
             FakeResponse(tool_calls=[bad]),
-            FakeResponse(tool_calls=[valid_serp()]),
+            FakeResponse(tool_calls=[valid_serp(), valid_keywords()]),
         ]
     )
     result = plan_queries(state(), metrics(), llm=llm)
 
     assert llm.invoke_count == 2
     assert result["planner_status"] == Status.OK
-    assert len(result["planned_calls"]) == 1
+    assert len(result["planned_calls"]) == 2
 
 
 def test_correction_prompt_contains_the_validator_message():
@@ -140,7 +147,8 @@ def test_partial_plan_is_marked_partial_and_keeps_the_good_calls():
 
     assert result["planner_status"] == Status.PARTIAL
     assert len(result["planned_calls"]) == 1
-    assert len(result["errors"]) == 1
+    rejections = [e for e in result["errors"] if e.error_type == "ToolCallValidationError"]
+    assert len(rejections) == 1
 
 
 def test_validation_errors_are_recorded_as_non_retryable():
@@ -204,3 +212,63 @@ def test_profile_context_reaches_the_prompt():
     prompt = str(llm.invocations[0])
     assert "surferseo.com" in prompt
     assert "clearscope.io" in prompt
+
+
+# --- coverage gaps ---
+
+def valid_keywords(call_id: str = "c3") -> dict:
+    return tool_call(
+        "KeywordMetricsArgs",
+        {"keywords": ["best seo tool", "seo content brief"], "location": "United Kingdom"},
+        call_id,
+    )
+
+
+def test_full_coverage_is_ok():
+    llm = FakeLLM([FakeResponse(tool_calls=[valid_serp(), valid_ai(), valid_keywords()])])
+    result = plan_queries(state(), metrics(), llm=llm)
+
+    assert result["planner_status"] == Status.OK
+    assert result["errors"] == []
+
+
+def test_missing_keyword_metrics_is_partial_not_failed():
+    llm = FakeLLM([FakeResponse(tool_calls=[valid_serp(), valid_ai()])] * 2)
+    result = plan_queries(state(), metrics(), llm=llm)
+
+    assert result["planner_status"] == Status.PARTIAL
+    assert len(result["planned_calls"]) == 2, "the good calls are kept"
+
+
+def test_coverage_gap_is_recorded_as_an_error_with_a_reason():
+    llm = FakeLLM([FakeResponse(tool_calls=[valid_serp()])] * 2)
+    result = plan_queries(state(), metrics(), llm=llm)
+    gap = [e for e in result["errors"] if e.error_type == "CoverageGap"]
+
+    assert len(gap) == 1
+    assert "opportunity" in gap[0].message.lower()
+
+
+def test_the_planner_does_not_inject_the_missing_call():
+    """Planning stays the planner's job; gaps are reported, not patched."""
+    llm = FakeLLM([FakeResponse(tool_calls=[valid_serp()])] * 2)
+    result = plan_queries(state(), metrics(), llm=llm)
+
+    assert all(c.tool_name != "keyword_metrics_lookup" for c in result["planned_calls"])
+
+
+def test_truncation_that_drops_coverage_is_reported():
+    """The cap runs first, so a lost metrics call is a real gap."""
+    many = [valid_serp(f"c{i}") for i in range(MAX_PLANNED_CALLS)] + [valid_keywords()]
+    llm = FakeLLM([FakeResponse(tool_calls=many)] * 2)
+    result = plan_queries(state(), metrics(), llm=llm)
+
+    assert len(result["planned_calls"]) == MAX_PLANNED_CALLS
+    assert result["planner_status"] == Status.PARTIAL
+
+
+def test_coverage_gap_count_is_logged(captured_logs):
+    llm = FakeLLM([FakeResponse(tool_calls=[valid_serp()])] * 2)
+    plan_queries(state(), metrics(), llm=llm)
+
+    assert captured_logs[-1]["coverage_gaps"] == 1
