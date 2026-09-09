@@ -7,6 +7,7 @@ report what it took. No knowledge of endpoints, schemas, or agents.
 import httpx
 
 from app.config import settings
+from app.dataforseo.breaker import CircuitBreaker
 from app.dataforseo.classify import classify_body, classify_http
 from app.dataforseo.errors import TransportError
 from app.dataforseo.retry import RetryOutcome, RetryPolicy, call_with_retry
@@ -27,6 +28,7 @@ class DataForSEOClient:
         timeout: float | None = None,
         policy: RetryPolicy | None = None,
         client: httpx.Client | None = None,
+        breaker: CircuitBreaker | None = None,
     ) -> None:
         self.base_url = (base_url or settings.dataforseo_base_url).rstrip("/")
         self.login = login if login is not None else settings.dataforseo_login
@@ -37,6 +39,7 @@ class DataForSEOClient:
         self.policy = policy or RetryPolicy(
             max_attempts=settings.dataforseo_max_attempts
         )
+        self.breaker = breaker or CircuitBreaker()
         self._auth = httpx.BasicAuth(self.login, self.password)
         self._client = client or httpx.Client(
             timeout=httpx.Timeout(self.timeout, connect=5.0)
@@ -47,11 +50,24 @@ class DataForSEOClient:
     ) -> tuple[dict, RetryOutcome]:
         """POST and return the parsed body, or raise a typed error."""
         url = f"{self.base_url}/{path.lstrip('/')}"
-        return call_with_retry(
-            lambda: self._post_once(url, payload),
-            policy=self.policy,
-            on_retry=on_retry,
-        )
+
+        # Refused before any attempt if the dependency is known bad.
+        self.breaker.before_call()
+
+        try:
+            result = call_with_retry(
+                lambda: self._post_once(url, payload),
+                policy=self.policy,
+                on_retry=on_retry,
+            )
+        except Exception as err:
+            # Reached only after retries are exhausted, so a counted
+            # failure represents a genuinely unavailable dependency.
+            self.breaker.record_failure(err)
+            raise
+
+        self.breaker.record_success()
+        return result
 
     def _post_once(self, url: str, payload: Payload) -> dict:
         try:

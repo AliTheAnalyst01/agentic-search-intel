@@ -161,3 +161,53 @@ def test_basic_auth_header_is_sent():
 
     make_client(handler).post("/v3/serp/errors", PAYLOAD)
     assert seen[0] is not None and seen[0].startswith("Basic ")
+
+
+# --- circuit breaker integration ---
+
+def test_repeated_exhausted_failures_open_the_circuit():
+    from app.dataforseo.breaker import BreakerState, CircuitBreaker, CircuitOpenError
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(503, text="unavailable")
+
+    breaker = CircuitBreaker(failure_threshold=2, cooldown_seconds=30.0)
+    client = make_client(handler, breaker=breaker)
+
+    for _ in range(2):
+        with pytest.raises(ServerError):
+            client.post("/v3/serp/errors", PAYLOAD)
+
+    assert breaker.state is BreakerState.OPEN
+    attempts_before = calls["n"]
+
+    with pytest.raises(CircuitOpenError):
+        client.post("/v3/serp/errors", PAYLOAD)
+
+    assert calls["n"] == attempts_before, "refused without touching the network"
+
+
+def test_a_success_keeps_the_circuit_closed():
+    from app.dataforseo.breaker import BreakerState, CircuitBreaker
+
+    breaker = CircuitBreaker(failure_threshold=2)
+    client = make_client(lambda req: httpx.Response(200, json=OK_BODY), breaker=breaker)
+    client.post("/v3/serp/errors", PAYLOAD)
+
+    assert breaker.state is BreakerState.CLOSED
+
+
+def test_auth_failures_do_not_open_the_circuit():
+    from app.dataforseo.breaker import BreakerState, CircuitBreaker
+
+    breaker = CircuitBreaker(failure_threshold=2)
+    client = make_client(lambda req: httpx.Response(401, text="nope"), breaker=breaker)
+
+    for _ in range(3):
+        with pytest.raises(AuthError):
+            client.post("/v3/serp/errors", PAYLOAD)
+
+    assert breaker.state is BreakerState.CLOSED
