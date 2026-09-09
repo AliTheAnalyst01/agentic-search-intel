@@ -196,7 +196,7 @@ def test_stats_reflect_runs_and_average_score(session):
     stats = profile_stats(session, profile.profile_uuid)
 
     assert stats["total_runs"] == 1
-    assert stats["most_recent_run_status"] == "ok"
+    assert stats["most_recent_run_status"] == "completed"
     assert stats["average_opportunity_score"] == 0.6
 
 

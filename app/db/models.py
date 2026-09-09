@@ -91,8 +91,9 @@ class QueryRow(Base):
     tool_name: Mapped[str] = mapped_column(String(60), default="")
     tool_args: Mapped[dict] = mapped_column(JSON, default=dict)
 
-    estimated_search_volume: Mapped[int] = mapped_column(Integer, default=0)
-    competitive_difficulty: Mapped[int] = mapped_column(Integer, default=0)
+    # Nullable: None means never measured, not measured as zero.
+    estimated_search_volume: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    competitive_difficulty: Mapped[int | None] = mapped_column(Integer, nullable=True)
     opportunity_score: Mapped[float] = mapped_column(Float, default=0.0, index=True)
     domain_visible: Mapped[bool] = mapped_column(Boolean, default=False)
     visibility_position: Mapped[int | None] = mapped_column(Integer, nullable=True)

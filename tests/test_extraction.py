@@ -196,3 +196,22 @@ def test_span_reports_record_counts(captured_logs):
 
     assert completion["records_normalized"] == 3
     assert completion["responses_parsed"] == 2
+
+
+def test_query_without_keyword_data_reports_null_not_zero():
+    """A SERP-only query was never measured for volume."""
+    result = extract(state([serp()]), metrics())
+    row = result["normalized_queries"][0]
+
+    assert row.estimated_search_volume is None
+    assert row.competitive_difficulty is None
+
+
+def test_merged_query_carries_real_metrics():
+    result = extract(state([serp(), keywords()]), metrics())
+    merged = next(
+        r for r in result["normalized_queries"] if r.query_text.lower() == "best seo tool"
+    )
+
+    assert merged.estimated_search_volume == 8100
+    assert merged.competitive_difficulty == 74

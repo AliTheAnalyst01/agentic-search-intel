@@ -158,22 +158,19 @@ def plan_queries(
                 break
 
             # Feed the validator's own messages back for self-correction.
-            messages.append(response)
-            for call in response.tool_calls or []:
-                messages.append(
-                    (
-                        "tool",
-                        "Rejected: " + "; ".join(problems),
-                    )
-                    if problems
-                    else ("tool", "Accepted.")
-                )
+            #
+            # Only a user turn is appended. Replaying the assistant turn
+            # would require a matching ToolMessage per tool_call_id, and
+            # the model does not need to see its own prior message when
+            # the correction turn quotes what was rejected.
+            rejected = "\n".join(f"  - {p}" for p in problems)
             messages.append(
                 (
                     "user",
-                    "Some tool calls were rejected by argument validation:\n"
-                    + "\n".join(problems)
-                    + "\nCall the tools again with corrected arguments.",
+                    "Argument validation rejected some of those tool calls:\n"
+                    f"{rejected}\n"
+                    "Call the tools again, correcting only the invalid "
+                    "arguments and using the allowed values shown above.",
                 )
             )
 

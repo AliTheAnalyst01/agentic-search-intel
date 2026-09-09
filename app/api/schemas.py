@@ -77,8 +77,8 @@ class RunResponse(BaseModel):
 class QueryOut(BaseModel):
     query_uuid: str
     query_text: str
-    estimated_search_volume: int
-    competitive_difficulty: int
+    estimated_search_volume: int | None
+    competitive_difficulty: int | None
     opportunity_score: float
     domain_visible: bool
     visibility_position: int | None

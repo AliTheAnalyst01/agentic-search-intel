@@ -36,8 +36,8 @@ class _Row:
 
     query_uuid: str
     query_text: str
-    search_volume: int = 0
-    difficulty: int = 0
+    search_volume: int | None = None
+    difficulty: int | None = None
     visibility_status: str = "unknown"
     visibility_position: int | None = None
     platforms: list[str] = field(default_factory=list)

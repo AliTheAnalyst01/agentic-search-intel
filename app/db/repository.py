@@ -268,7 +268,16 @@ def list_recommendations(
     return sorted(rows, key=lambda r: priority_rank.get(r.priority, 3))
 
 
+# The API contract (assessment section 4.2) specifies
+# completed / failed / partial. Internally Status.OK is "ok"; it maps to
+# "completed" here, at the persistence boundary, so both /run and
+# /profiles/{uuid} report the documented vocabulary without the graph
+# nodes having to know about the wire format.
+WIRE_STATUS = {Status.OK.value: "completed"}
+
+
 def _status_value(status) -> str:
     if status is None:
         return Status.PENDING.value
-    return status.value if hasattr(status, "value") else str(status)
+    raw = status.value if hasattr(status, "value") else str(status)
+    return WIRE_STATUS.get(raw, raw)

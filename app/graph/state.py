@@ -72,8 +72,11 @@ class NormalizedQuery(_Model):
 
     query_uuid: str
     query_text: str
-    estimated_search_volume: int = 0
-    competitive_difficulty: int = 0
+    # None means the metric was never measured, distinct from a
+    # measured zero. Deviates from section 4.2's "integer", for the
+    # same reason visibility_status is three-state.
+    estimated_search_volume: int | None = None
+    competitive_difficulty: int | None = None
     opportunity_score: float = 0.0
     domain_visible: bool = False
     visibility_position: int | None = None

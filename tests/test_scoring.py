@@ -58,3 +58,32 @@ def test_high_volume_low_difficulty_gap_outranks_the_reverse():
     )
 
     assert good > poor
+
+
+# --- unmeasured metrics ---
+
+def test_unmeasured_volume_is_neutral():
+    assert volume_component(None) == 0.5
+
+
+def test_measured_zero_differs_from_unmeasured():
+    """Zero searches is a finding; unknown is an absence of one."""
+    assert volume_component(0) == 0.0
+    assert volume_component(None) == 0.5
+
+
+def test_unmeasured_difficulty_does_not_earn_perfect_ease():
+    """difficulty=0 means trivially easy; None means we never checked."""
+    assert ease_component(0) == 1.0
+    assert ease_component(None) == 0.5
+    assert ease_component(None) < ease_component(0)
+
+
+def test_unmeasured_query_scores_below_a_measured_easy_one():
+    unmeasured = opportunity_score(
+        search_volume=None, difficulty=None, visibility_status="not_visible"
+    )
+    measured_easy = opportunity_score(
+        search_volume=8100, difficulty=10, visibility_status="not_visible"
+    )
+    assert unmeasured < measured_easy

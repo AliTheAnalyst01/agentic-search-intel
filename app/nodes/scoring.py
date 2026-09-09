@@ -24,14 +24,22 @@ WEIGHT_GAP = 0.40
 VOLUME_CEILING = 100_000
 
 
-def volume_component(search_volume: int) -> float:
+def volume_component(search_volume: int | None) -> float:
+    """None means never measured: neutral, so absent data neither
+    inflates nor destroys a score. Zero means measured as zero."""
+    if search_volume is None:
+        return 0.5
     if search_volume <= 0:
         return 0.0
     scaled = math.log10(1 + search_volume) / math.log10(1 + VOLUME_CEILING)
     return min(1.0, scaled)
 
 
-def ease_component(difficulty: int) -> float:
+def ease_component(difficulty: int | None) -> float:
+    """None means never measured. Without this, an unmeasured query
+    scores difficulty 0 and earns a perfect ease component."""
+    if difficulty is None:
+        return 0.5
     clamped = max(0, min(100, difficulty))
     return 1.0 - (clamped / 100)
 
@@ -55,8 +63,8 @@ def gap_component(
 
 def opportunity_score(
     *,
-    search_volume: int,
-    difficulty: int,
+    search_volume: int | None,
+    difficulty: int | None,
     visibility_status: str,
     visibility_position: int | None = None,
 ) -> float:

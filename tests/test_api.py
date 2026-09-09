@@ -177,7 +177,7 @@ def test_run_produces_data(client):
     pid = make_profile(client)
     body = client.post(f"/api/v1/profiles/{pid}/run", json={}).json()
 
-    assert body["status"] in ("ok", "partial")
+    assert body["status"] in ("completed", "partial")
     assert body["retrieval_calls_planned"] == 2
     assert body["records_normalized"] >= 1
     assert body["report_summary"]
@@ -201,7 +201,7 @@ def test_stats_update_after_a_run(client):
     body = client.get(f"/api/v1/profiles/{pid}").json()
 
     assert body["total_runs"] == 1
-    assert body["most_recent_run_status"] in ("ok", "partial")
+    assert body["most_recent_run_status"] in ("completed", "partial")
     assert body["average_opportunity_score"] is not None
 
 

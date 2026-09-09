@@ -8,6 +8,8 @@ the tool calls a node has to cope with.
 from dataclasses import dataclass, field
 from typing import Any
 
+from langchain_core.messages.utils import convert_to_messages
+
 
 @dataclass
 class FakeResponse:
@@ -29,6 +31,14 @@ class FakeLLM:
         return self
 
     def invoke(self, messages: Any) -> FakeResponse:
+        """Validates its input the way a real provider would.
+
+        A permissive fake hid a crash in the planner's correction path:
+        ("tool", "...") tuples are accepted by a list but rejected by
+        LangChain, which requires a tool_call_id on every ToolMessage.
+        """
+        if isinstance(messages, list):
+            convert_to_messages(messages)
         self.invocations.append(messages)
         if not self._responses:
             raise AssertionError("FakeLLM ran out of scripted responses")
