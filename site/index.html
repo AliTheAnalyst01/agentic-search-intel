@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Search Intelligence — a multi-agent pipeline, measured</title>
+<meta name="description" content="Five single-responsibility agents in a LangGraph DAG that answer how a brand appears in search results and AI-generated answers. A walkthrough of one recorded run.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Ground: plotter paper, cool and pale. Ink: blue-black. */
+    --ground:#eaeef2;
+    --paper:#ffffff;
+    --ink:#141a21;
+    --ink-soft:#57626e;
+    --ink-faint:#8b95a1;
+    --rule:#c9d1da;
+    --rule-soft:#dde3ea;
+
+    /* Semantics borrowed directly from the project's three visibility
+       states, so colour carries meaning rather than decoration. */
+    --verified:#15704a;
+    --absent:#a52a1f;
+    --unknown:#94620a;
+
+    --measure:70ch;
+  }
+
+  *{box-sizing:border-box}
+
+  html{-webkit-text-size-adjust:100%}
+
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;
+    font-size:17px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+
+  a{color:var(--ink);text-decoration:none;border-bottom:1.5px solid var(--rule)}
+  a:hover{border-bottom-color:var(--ink)}
+  a:focus-visible{outline:2.5px solid var(--ink);outline-offset:3px;border-radius:2px}
+
+  p{max-width:var(--measure)}
+
+  h1,h2,h3{font-weight:600;letter-spacing:-0.02em;line-height:1.15;margin:0}
+
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-ligatures:none}
+
+  /* ---------- masthead ---------- */
+
+  header{padding:56px 0 0}
+
+  .ident{
+    display:flex;flex-wrap:wrap;gap:14px 22px;align-items:baseline;
+    padding-bottom:14px;border-bottom:2px solid var(--ink);
+  }
+  .ident h1{font-size:clamp(26px,3.4vw,38px)}
+  .ident .by{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft);margin-left:auto}
+
+  .lede{margin:26px 0 0;font-size:clamp(19px,2.1vw,23px);line-height:1.45;max-width:34em;color:var(--ink)}
+  .sub{margin:16px 0 0;color:var(--ink-soft);max-width:38em}
+
+  /* ---------- hero: the run summary ---------- */
+
+  .run{margin:44px 0 0}
+
+  .run-head{
+    display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;
+    font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft);
+    padding-bottom:10px;
+  }
+  .run-head b{color:var(--ink);font-weight:500}
+
+  .logline{
+    background:var(--ink);color:#dfe6ee;border-radius:3px;
+    padding:18px 20px;overflow-x:auto;
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.75;
+    white-space:pre;
+  }
+  .logline .k{color:#8fa6be}
+  .logline .n{color:#7fd4a8}
+  .logline .s{color:#e8c98a}
+
+  .note{
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;
+    color:var(--ink-soft);margin-top:12px;max-width:64ch;line-height:1.65;
+  }
+
+  /* ---------- timeline ---------- */
+
+  .tl{margin:38px 0 0;background:var(--paper);border:1px solid var(--rule);border-radius:3px;padding:24px}
+  .tl-title{font-size:15px;font-weight:600;margin-bottom:4px}
+  .tl-note{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);margin-bottom:22px}
+
+  .bar{display:flex;height:26px;border-radius:2px;overflow:hidden;background:var(--rule-soft);gap:1px}
+  .seg{min-width:3px;background:var(--ink-soft);transform-origin:left;transition:width 900ms cubic-bezier(.2,.7,.3,1)}
+  .seg.llm{background:var(--ink)}
+  .bar[data-armed="0"] .seg{width:0 !important}
+
+  .axis{
+    display:flex;justify-content:space-between;
+    font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-faint);
+    margin-top:6px;padding-top:6px;border-top:1px solid var(--rule-soft);
+  }
+
+  .nodes{margin-top:22px;border-top:1px solid var(--rule-soft)}
+  .node{
+    display:grid;grid-template-columns:minmax(0,1fr) 8ch 7ch;gap:16px;align-items:baseline;
+    padding:9px 0;border-bottom:1px solid var(--rule-soft);
+    font-family:"IBM Plex Mono",monospace;font-size:13px;
+  }
+  .node .nm{color:var(--ink);font-weight:500}
+  .node .nm .tag{font-weight:400;color:var(--ink-faint);font-size:12px;margin-left:8px}
+  .node .ms{text-align:right;color:var(--ink)}
+  .node .pc{text-align:right;color:var(--ink-faint)}
+
+  .tl-read{margin-top:18px;font-size:15px;color:var(--ink-soft);max-width:64ch}
+  .tl-read b{color:var(--ink);font-weight:500}
+
+  /* ---------- generic section ---------- */
+
+  section{padding:76px 0 0}
+  .shead{border-top:2px solid var(--ink);padding-top:16px;margin-bottom:26px}
+  .shead h2{font-size:clamp(21px,2.4vw,26px)}
+  .shead p{margin:12px 0 0;color:var(--ink-soft)}
+
+  /* ---------- agents ---------- */
+
+  .agents{border-top:1px solid var(--rule)}
+  .agent{
+    display:grid;grid-template-columns:14ch minmax(0,1.5fr) minmax(0,1fr);
+    gap:8px 24px;padding:16px 0;border-bottom:1px solid var(--rule);align-items:baseline;
+  }
+  .agent .an{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500}
+  .agent .ad{font-size:15.5px}
+  .agent .ax{font-size:14px;color:var(--absent)}
+  .agent .ax::before{content:"never ";color:var(--ink-faint)}
+  .agent.fb .an,.agent.fb .ad{color:var(--ink-soft)}
+
+  .agent-foot{margin-top:22px;font-size:15px;color:var(--ink-soft);max-width:66ch}
+  .agent-foot code{font-size:13px;color:var(--ink)}
+
+  /* ---------- three states ---------- */
+
+  .states{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .state{background:var(--paper);padding:18px 20px}
+  .state .sv{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;display:flex;align-items:center;gap:9px}
+  .state .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .state p{margin:9px 0 0;font-size:14.5px;color:var(--ink-soft);max-width:none}
+  .v .dot{background:var(--verified)} .v .sv{color:var(--verified)}
+  .a .dot{background:var(--absent)}   .a .sv{color:var(--absent)}
+  .u .dot{background:var(--unknown)}  .u .sv{color:var(--unknown)}
+
+  /* ---------- report output ---------- */
+
+  .report{
+    background:var(--paper);border:1px solid var(--rule);border-radius:3px;
+    padding:22px;overflow-x:auto;
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.8;
+    white-space:pre;color:var(--ink);
+  }
+  .report .g{color:var(--verified)}
+  .report .r{color:var(--absent)}
+  .report .m{color:var(--unknown)}
+  .report .f{color:var(--ink-faint)}
+
+  /* ---------- failure scenarios ---------- */
+
+  .fail{border-top:1px solid var(--rule)}
+  .frow{padding:22px 0;border-bottom:1px solid var(--rule)}
+  .frow h3{font-size:16.5px;margin-bottom:8px}
+  .frow p{margin:0;color:var(--ink-soft);font-size:15px}
+  .frow .out{
+    margin-top:14px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;
+    line-height:1.8;color:var(--ink);background:var(--paper);
+    border-left:3px solid var(--rule);padding:12px 16px;overflow-x:auto;white-space:pre;
+  }
+  .frow .out .g{color:var(--verified)}
+  .frow .out .r{color:var(--absent)}
+  .frow .out .m{color:var(--unknown)}
+
+  /* ---------- 200 trap ---------- */
+
+  .trap{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-top:6px}
+  .layer{background:var(--paper);padding:18px 20px}
+  .layer .ln{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-faint)}
+  .layer .lq{font-family:"IBM Plex Mono",monospace;font-size:13.5px;font-weight:500;margin-top:7px}
+  .layer p{margin:9px 0 0;font-size:14px;color:var(--ink-soft);max-width:none}
+
+  /* ---------- score ---------- */
+
+  .score{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:44px}
+  .weights{border-top:1px solid var(--rule)}
+  .w{display:grid;grid-template-columns:5ch minmax(0,1fr);gap:16px;padding:13px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .w .wv{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600}
+  .w .wn{font-weight:500;font-size:15px}
+  .w .wd{grid-column:2;font-size:14px;color:var(--ink-soft);margin-top:3px}
+
+  .gap-tbl{border-top:1px solid var(--rule);font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .gr{display:grid;grid-template-columns:minmax(0,1fr) 6ch;gap:14px;padding:10px 0;border-bottom:1px solid var(--rule)}
+  .gr .gv{text-align:right;font-weight:600}
+  .gr.hl{background:var(--paper);margin:0 -12px;padding:10px 12px;border-bottom-color:var(--rule)}
+  .gr.hl .gl,.gr.hl .gv{color:var(--unknown)}
+
+  /* ---------- stack + footer ---------- */
+
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .fact{background:var(--paper);padding:18px 20px}
+  .fact .fv{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;letter-spacing:-0.02em}
+  .fact .fl{font-size:13.5px;color:var(--ink-soft);margin-top:4px}
+
+  .cta{margin-top:34px;display:flex;flex-wrap:wrap;gap:14px}
+  .btn{
+    display:inline-block;background:var(--ink);color:var(--ground);
+    padding:13px 22px;border-radius:3px;border-bottom:none;
+    font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:500;
+  }
+  .btn:hover{background:#000;border-bottom:none}
+  .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+  .btn.ghost:hover{background:var(--ink);color:var(--ground)}
+
+  footer{margin-top:80px;border-top:2px solid var(--ink);padding:20px 0 70px;
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-soft);
+    display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
+
+  @media (max-width:820px){
+    body{font-size:16px}
+    .agent{grid-template-columns:1fr;gap:4px}
+    .agent .ax{color:var(--absent)}
+    .score{grid-template-columns:1fr;gap:34px}
+    .ident .by{margin-left:0;width:100%}
+    .node{grid-template-columns:minmax(0,1fr) 7ch 6ch;gap:10px;font-size:12px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .seg{transition:none}
+    .bar[data-armed="0"] .seg{width:auto !important}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="ident">
+    <h1>Agentic Search Intelligence</h1>
+    <span class="by">technical assessment / Syed Faizan</span>
+  </div>
+
+  <p class="lede">Five agents, each doing exactly one job, answering how a brand
+  shows up in Google results and inside AI assistants.</p>
+
+  <p class="sub">Built with LangGraph and FastAPI over DataForSEO's search and
+  AI-visibility APIs. Everything below is output from real runs, not
+  illustration. This page is a walkthrough; the code is
+  <a href="https://github.com/AliTheAnalyst01/agentic-search-intel">on GitHub</a>.</p>
+
+  <div class="run">
+    <div class="run-head">
+      <span>one recorded run</span>
+      <span><b>run_id</b> 7af799c8-3035-4725-98e9-b45a32820a19</span>
+    </div>
+
+    <div class="logline"><span class="k">"nodes_executed"</span>: <span class="n">5</span>, <span class="k">"nodes_ok"</span>: <span class="n">5</span>, <span class="k">"nodes_failed"</span>: <span class="n">0</span>, <span class="k">"success_rate"</span>: <span class="n">1.0</span>,
+<span class="k">"total_duration_ms"</span>: <span class="n">12386.3</span>, <span class="k">"api_calls"</span>: <span class="n">5</span>, <span class="k">"api_calls_failed"</span>: <span class="n">0</span>,
+<span class="k">"retries"</span>: <span class="n">0</span>, <span class="k">"total_tokens"</span>: <span class="n">1879</span>, <span class="k">"event"</span>: <span class="s">"run_summary"</span></div>
+
+    <p class="note">Every log line in a run carries the same run_id, so one grep
+    reconstructs the whole execution even with concurrent runs interleaved.
+    That one line answers what ran, whether it worked, how long it took, what it
+    cost, and how many external calls it made.</p>
+  </div>
+
+  <div class="tl">
+    <div class="tl-title">Where the 12.4 seconds went</div>
+    <div class="tl-note">segment widths are true to measured duration</div>
+
+    <div class="bar" id="bar" data-armed="0">
+      <div class="seg llm" style="width:22.05%" title="query_planner 2730.96ms"></div>
+      <div class="seg"     style="width:0.017%" title="retrieval 2.16ms"></div>
+      <div class="seg"     style="width:0.003%" title="extraction 0.35ms"></div>
+      <div class="seg llm" style="width:77.93%" title="analysis 9652.55ms"></div>
+      <div class="seg"     style="width:0.002%" title="report 0.28ms"></div>
+    </div>
+    <div class="axis"><span>0 ms</span><span>12,386 ms</span></div>
+
+    <div class="nodes">
+      <div class="node"><span class="nm">query_planner<span class="tag">LLM</span></span><span class="ms">2730.96</span><span class="pc">22.1%</span></div>
+      <div class="node"><span class="nm">retrieval</span><span class="ms">2.16</span><span class="pc">0.02%</span></div>
+      <div class="node"><span class="nm">extraction</span><span class="ms">0.35</span><span class="pc">0.00%</span></div>
+      <div class="node"><span class="nm">analysis<span class="tag">LLM</span></span><span class="ms">9652.55</span><span class="pc">77.9%</span></div>
+      <div class="node"><span class="nm">report</span><span class="ms">0.28</span><span class="pc">0.00%</span></div>
+    </div>
+
+    <p class="tl-read">Three of the five nodes are hairlines because they finish in
+    under three milliseconds combined. <b>The two model calls account for 99.98% of
+    the run.</b> Knowing that is the difference between optimising the right thing
+    and rewriting a parser that was never slow.</p>
+  </div>
+</header>
+
+<section>
+  <div class="shead">
+    <h2>The question it answers</h2>
+    <p>Ask it in plain language. It plans the lookups, makes them, reads the
+    responses, reasons over the numbers, and writes up what it found.</p>
+  </div>
+  <p>Marketing teams can see their Google rankings. What they cannot see is
+  whether ChatGPT names them when someone asks for the best tool in their
+  category — and increasingly that is where the buying research starts.
+  Answering it by hand means opening a dozen tabs, asking four assistants the
+  same question, and typing numbers into a spreadsheet that is stale tomorrow.</p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>Five agents, one job each</h2>
+    <p>No agent both fetches data and reasons about it. That separation is the
+    point: when something breaks, exactly one agent is responsible for it.</p>
+  </div>
+
+  <div class="agents">
+    <div class="agent">
+      <span class="an">query_planner</span>
+      <span class="ad">Decides which lookups would answer the question</span>
+      <span class="ax">fetches anything</span>
+    </div>
+    <div class="agent">
+      <span class="an">retrieval</span>
+      <span class="ad">Makes the calls, hands back the raw responses untouched</span>
+      <span class="ax">parses or reshapes</span>
+    </div>
+    <div class="agent">
+      <span class="an">extraction</span>
+      <span class="ad">Turns three different response shapes into one clean schema</span>
+      <span class="ax">calls an API, or interprets</span>
+    </div>
+    <div class="agent">
+      <span class="an">analysis</span>
+      <span class="ad">Reasons over the normalised rows to produce findings</span>
+      <span class="ax">retrieves, parses, or assigns a score</span>
+    </div>
+    <div class="agent">
+      <span class="an">report</span>
+      <span class="ad">Assembles the structured output and the written summary</span>
+      <span class="ax">reasons, or invents a finding</span>
+    </div>
+    <div class="agent fb">
+      <span class="an">fallback</span>
+      <span class="ad">Records why a run degraded, when an earlier stage produced nothing usable</span>
+      <span class="ax">produces findings</span>
+    </div>
+  </div>
+
+  <p class="agent-foot">The separation is tested rather than asserted. Each node
+  returns only the state keys it owns, and a test fails if that changes —
+  <code>test_planner_does_not_fetch_anything</code>,
+  <code>test_response_is_returned_unmodified</code>,
+  <code>test_node_does_not_normalize</code>.</p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>What it produces</h2>
+    <p>A JSON report for machines and a written summary for people. Below is the
+    summary from a real run, unedited.</p>
+  </div>
+
+  <div class="report">Search and AI visibility review for Surfer SEO (surferseo.com).
+
+Queries analysed: 4. Visible: <span class="g">2</span>. Not visible: <span class="r">0</span>. Could not be checked: <span class="m">2</span>.
+
+Highest-opportunity queries:
+  - surfer seo alternative       (opportunity 0.574, 590 searches/mo,  difficulty 28, <span class="m">not checked</span>)
+  - seo content optimization     (opportunity 0.557, 2400 searches/mo, difficulty 52, <span class="m">not checked</span>)
+  - What are the best SEO tools? (opportunity 0.49,  <span class="f">n/a</span> searches/mo,  difficulty <span class="f">n/a</span>, <span class="g">visible in AI answers</span>)
+  - best seo tool                (opportunity 0.339, 8100 searches/mo, difficulty 74, <span class="g">#3</span>)
+  <span class="f">Queries marked "not checked" have provisional scores: no SERP lookup
+  covered them, so their visibility is unverified.</span>
+
+Recommended content:
+  - [medium] Surfer SEO Alternatives: How We Compare (comparison_page)
+      Captures users searching for alternatives — 590 monthly searches.</div>
+
+  <p class="note">Read the fourth column. Two queries say <b>not checked</b>, not
+  "not ranking" — and the AI-visibility query reports <b>n/a</b> search volume
+  rather than zero, because a conversational prompt has no search volume to
+  measure.</p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>Three states, not two</h2>
+    <p>The distinction that took a bug to get right, and the one I would defend
+    hardest in a review.</p>
+  </div>
+
+  <div class="states">
+    <div class="state v">
+      <div class="sv"><span class="dot"></span>visible</div>
+      <p>We looked, and the brand is there. A position is recorded.</p>
+    </div>
+    <div class="state a">
+      <div class="sv"><span class="dot"></span>not_visible</div>
+      <p>We looked, and the brand is absent. That is a finding.</p>
+    </div>
+    <div class="state u">
+      <div class="sv"><span class="dot"></span>unknown</div>
+      <p>We never looked, or the lookup failed. That is not a finding.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:24px">Collapsing the third state into the second reports
+  "you are not ranking" when the truth is "we could not check" — confident,
+  wrong, and pointing the customer in the wrong direction. An early version did
+  exactly that, passed every test, and produced a report whose own two lines
+  contradicted each other. The model then faithfully described the contradiction
+  it had been handed.</p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>When things break</h2>
+    <p>The interesting question is never whether an external API fails. It is
+    what the customer sees when it does. Three scenarios, each real output.</p>
+  </div>
+
+  <div class="fail">
+    <div class="frow">
+      <h3>A transient failure the caller never notices</h3>
+      <p>Two rate-limit responses on the same call, then success. Exponential
+      backoff with full jitter, so many clients do not all retry in the same
+      instant and knock over a service that has just recovered.</p>
+      <div class="out">retrieval status : <span class="g">ok</span>
+attempts on SERP : [3, 1, 1, 1, 1]
+retries recorded : 2</div>
+    </div>
+
+    <div class="frow">
+      <h3>A failure that is not worth retrying</h3>
+      <p>A 401 means the credentials are wrong. Retrying it three times achieves
+      nothing and burns the rate limit, so retryability is a property of the
+      error type rather than a decision made at each call site.</p>
+      <div class="out">SERP calls made  : 2 <span class="m">(2 planned calls, 1 attempt each)</span>
+retrieval status : <span class="m">partial</span>
+error recorded   : <span class="r">AuthError: 401 Unauthorized</span></div>
+    </div>
+
+    <div class="frow">
+      <h3>Everything fails, and a report still arrives</h3>
+      <p>When no call succeeds there is nothing to extract or analyse, so the
+      graph routes around both of those agents to a fallback that records why.
+      A partial run returns an explained gap, never an empty response and never
+      a crash.</p>
+      <div class="out">nodes visited  : query_planner → retrieval → <span class="r">fallback</span> → report
+overall status : <span class="m">partial</span>
+degradation    : Every retrieval call failed, so there was
+                 no data to analyse.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>The trap in the upstream API</h2>
+    <p>DataForSEO returns HTTP 200 for almost everything. The real outcome hides
+    in the response body, on two separate levels.</p>
+  </div>
+
+  <div class="trap">
+    <div class="layer">
+      <div class="ln">layer 1</div>
+      <div class="lq">HTTP status</div>
+      <p>Only 401, 402, 404 and 500 ever appear here. Everything else is a 200.</p>
+    </div>
+    <div class="layer">
+      <div class="ln">layer 2</div>
+      <div class="lq">body status_code</div>
+      <p>Success is 20000–29999. A validation failure arrives as a 200 carrying 40501.</p>
+    </div>
+    <div class="layer">
+      <div class="ln">layer 3</div>
+      <div class="lq">per-task status_code</div>
+      <p>The call can be accepted while the task inside it still failed to produce data.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:24px">A client built on HTTP codes alone treats those
+  failures as successes and passes empty payloads downstream, where they surface
+  three agents later as "no results found" instead of "authentication is
+  broken". Task codes do not even split cleanly by range: 40501 is our own
+  malformed request and must not be retried, while 40101 is an upstream search
+  engine failing after their internal retries, which should be.</p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>How a query gets scored</h2>
+    <p>The formula was mine to define. Three weighted components, and the model
+    never touches any of them.</p>
+  </div>
+
+  <div class="score">
+    <div>
+      <div class="weights">
+        <div class="w">
+          <span class="wv">0.40</span><span class="wn">Gap</span>
+          <span class="wd">Heaviest weight. A query you already rank first for is not an opportunity, however large it is.</span>
+        </div>
+        <div class="w">
+          <span class="wv">0.35</span><span class="wn">Volume</span>
+          <span class="wd">Log-scaled, because 100 to 1,000 searches matters far more than 10,000 to 11,000.</span>
+        </div>
+        <div class="w">
+          <span class="wv">0.25</span><span class="wn">Ease</span>
+          <span class="wd">The inverse of keyword difficulty.</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="gap-tbl">
+        <div class="gr"><span class="gl">not visible</span><span class="gv">1.00</span></div>
+        <div class="gr"><span class="gl">position 11+</span><span class="gv">0.60</span></div>
+        <div class="gr"><span class="gl">position 4–10</span><span class="gv">0.30</span></div>
+        <div class="gr"><span class="gl">position 1–3</span><span class="gv">0.00</span></div>
+        <div class="gr hl"><span class="gl">never checked</span><span class="gv">0.50</span></div>
+      </div>
+      <p class="note" style="margin-top:14px">Neutral, not 1.00. Scoring a failed
+      lookup as wide-open lets a broken call manufacture a top priority out of
+      nothing. Unmeasured search volume and difficulty are treated the same way.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:30px">The model writes the prose — the finding titles, the
+  rationales, the suggested content angles. Every number is computed in code, and
+  priority is derived from the score by threshold. Letting the model assign
+  priority would create a second source of truth that visibly contradicts the
+  score printed next to it.</p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>What is in the repository</h2>
+    <p>It clones and runs with no credentials and no network: the DataForSEO
+    layer ships with a mock client that can be scripted to fail on demand.</p>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><div class="fv">317</div><div class="fl">tests, no credentials needed</div></div>
+    <div class="fact"><div class="fv">5+1</div><div class="fl">agents and a fallback node</div></div>
+    <div class="fact"><div class="fv">3</div><div class="fl">conditional edges to fallback</div></div>
+    <div class="fact"><div class="fv">3</div><div class="fl">typed tools, one per endpoint</div></div>
+  </div>
+
+  <p style="margin-top:26px">LangGraph for the DAG, FastAPI and SQLAlchemy for
+  the API and persistence, Pydantic for the tool schemas and argument
+  validation, structlog for the JSON logs and correlation IDs, httpx for the
+  transport. Six REST endpoints, including one that re-runs a single query by
+  entering the graph part-way through and skipping the planner entirely.</p>
+
+  <p>The README covers the architecture and DAG diagram, how retries and
+  fallbacks work with a runnable demonstration, how the observability fits
+  together, three bugs worth writing up, and the ten things I would change with
+  more time.</p>
+
+  <div class="cta">
+    <a class="btn" href="https://github.com/AliTheAnalyst01/agentic-search-intel">Read the code</a>
+    <a class="btn ghost" href="https://github.com/AliTheAnalyst01/agentic-search-intel#readme">Read the README</a>
+  </div>
+</section>
+
+<footer>
+  <span>Every figure on this page came from a run I measured.</span>
+  <span>Syed Faizan</span>
+</footer>
+
+</div>
+
+<script>
+  // One orchestrated moment: the timeline fills once, when it first
+  // comes into view, so the proportions land as a movement rather than
+  // as a static bar. Nothing else on the page animates.
+  (function () {
+    var bar = document.getElementById('bar');
+    if (!bar) return;
+
+    var reduce = window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduce || !('IntersectionObserver' in window)) {
+      bar.setAttribute('data-armed', '1');
+      return;
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          requestAnimationFrame(function () {
+            bar.setAttribute('data-armed', '1');
+          });
+          io.disconnect();
+        }
+      });
+    }, { threshold: 0.35 });
+
+    io.observe(bar);
+  })();
+</script>
+
+</body>
+</html>

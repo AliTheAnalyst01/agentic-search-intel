@@ -11,3 +11,6 @@ wheels/
 .env
 agentic_search.db
 agentic_search.db
+
+# Local Netlify folder
+.netlify
